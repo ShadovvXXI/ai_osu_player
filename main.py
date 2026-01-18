@@ -1,39 +1,63 @@
+from tkinter.font import names
+
 import dxcam
 from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtGui import QPixmap, QImage
 from PyQt6.QtWidgets import QApplication, QMainWindow
 from win32gui import FindWindow, GetClientRect, ClientToScreen
+import pygetwindow as gw
 import cv2
 import sys
 import mouse
+import time as tm
+import logging
 
 from osuparser import beatmapparser
-import datetime
-import os
 from random import shuffle
+import os
 
-import tensorflow as tf
-from tensorflow import keras
+# import tensorflow as tf
+# from tensorflow import keras
+
+logging.basicConfig(level=logging.INFO)
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("My App")
-        self.unitUI()
-
-    def unitUI(self):
         self.widget = QtWidgets.QLabel(self)
+        self.setWindowTitle("My App")
+        self.timer()
+        self.timer_start = None
+        self.recorded_image = dict()
+        self.training_state = False
+        self.training_time = 0
+
+    def timer(self):
         timer = QtCore.QTimer(self)
-        timer.timeout.connect(self.update_image)
+        timer.timeout.connect(self.millisecond_tick)
         timer.start(1)
+
+    def millisecond_tick(self):
+        # x, y = mouse.get_position()
+        # print(f"Курсор находится в точке: ({x}, {y})")
+
+        image = self.update_image()
+        if "osu!" not in gw.getAllTitles() and any("osu!" in s for s in gw.getAllTitles()):
+            if not self.training_state:
+                self.timer_start = tm.perf_counter_ns()
+                self.training_state = True
+            elapsed_ms = (tm.perf_counter_ns() - self.timer_start) // 1_000_000
+            self.recorded_image[elapsed_ms] = image
+
+        if "osu!" in gw.getAllTitles() and self.training_state:
+            self.training_state = False
+            self.training_time += 1
 
     def update_image(self):
         res_img = cv2.resize(camera.get_latest_frame(), (250, 125), cv2.INTER_AREA)
         # Image.fromarray(res_img).show()
 
-        x, y = mouse.get_position()
-        print(f"Курсор находится в точке: ({x}, {y})")
-
+        # преобразуем в формат подходящий для Qt
         h, w, ch = res_img.shape
         bytes_per_line = ch * w
 
@@ -51,8 +75,12 @@ class MainWindow(QMainWindow):
 
         self.setCentralWidget(self.widget)
 
+        return res_img
+
+
 def osu_cords_to_window_pos(resolution, cords):
     return int(cords[0] / 512 * resolution[0]), int(cords[1] / 384 * resolution[1])
+
 
 # обработчик окна и его координаты на экране
 window_handle = FindWindow(None, "osu!")
@@ -72,48 +100,112 @@ camera.start(region=region)
 # путь до папки с песнями
 osu_songs_directory = os.path.join(os.getenv('LOCALAPPDATA'), 'osu!', 'Songs')
 
-# выбрать рандомную песню
-maps = os.listdir(osu_songs_directory)
-shuffle(maps)
-map_path = os.path.join(osu_songs_directory, maps[0])
+# # выбрать рандомную песню
+# maps = os.listdir(osu_songs_directory)
+# shuffle(maps)
+# map_path = os.path.join(osu_songs_directory, maps[0])
+#
+# # выбираем первый .osu файл
+# file = [x for x in os.listdir(map_path) if x.endswith(".osu")][0]
+# osu_path = os.path.join(map_path, file)
+# print(osu_path)
+#
+# # инициализируем парсер
+# parser = beatmapparser.BeatmapParser()
+#
+# # парсим файл и строим beatmap на основе файла
+# timer_start = tm.perf_counter_ns()
+# parser.parseFile(osu_path)
+# print("Parsing done. Time:", (tm.perf_counter_ns() - timer_start) // 1_000_000, 'ms')
+#
+# timer_start = tm.perf_counter_ns()
+# beatmap = parser.build_beatmap()
+# print("Building done. Time:", (tm.perf_counter_ns() - timer_start) // 1_000_000, 'ms')
 
-# выбираем первый .osu файл
-file = [x for x in os.listdir(map_path) if x.endswith(".osu")][0]
-osu_path = os.path.join(map_path, file)
-print(osu_path)
+class DirectoryWithSongNotFoundError(Exception):
+    pass
 
-# инициализируем парсер
-parser = beatmapparser.BeatmapParser()
+class MapFileNotFoundError(Exception):
+    pass
 
-# парсим файл
-time = datetime.datetime.now()
-parser.parseFile(osu_path)
-print("Parsing done. Time: ", (datetime.datetime.now() - time).microseconds / 1000, 'ms')
+class Song:
+    def __init__(self, name):
+        if name not in os.listdir(osu_songs_directory):
+            raise DirectoryWithSongNotFoundError("No such songs")
+        self.song_name = name
+        self.file = None
+        self.parser = None
+        self.hit_timings_to_pos = dict()
 
-# строим beatmap на основе спаршеного файла
-time = datetime.datetime.now()
-beatmap = parser.build_beatmap()
-print("Building done. Time: ", (datetime.datetime.now() - time).microseconds / 1000, 'ms')
+    def parse_map_file(self, map_name):
+        song_directory = os.path.join(osu_songs_directory, self.song_name)
+        maps = [x for x in os.listdir(song_directory)
+                if map_name in x and x.endswith(".osu")]
+        if not maps:
+            raise MapFileNotFoundError("No such map")
 
-# соотносим тайминги с позицией мыши относительно окна
-hit_timings_to_pos = dict()
-for obj in beatmap["hitObjects"]:
-    match obj["object_name"]:
-        case 'circle':
-            hit_timings_to_pos[obj["startTime"]] = osu_cords_to_window_pos(size, obj["position"])
-        case 'slider':
-            slider_len = len(obj["points"])
-            for x in range(slider_len):
-                hit_timings_to_pos[round(obj["startTime"]+(x/slider_len)*obj["duration"])] = osu_cords_to_window_pos(size, obj["points"][x])
-            # for point in obj["points"]:
-            #     hit_timings_to_pos[obj["startTime"]] = osu_cords_to_window_pos(size, obj["position"])
-        # TODO : сделать обработку для спиннера
+        self.file = maps[0]
+        osu_path = os.path.join(song_directory, self.file)
+        self.parser = beatmapparser.BeatmapParser()
+
+        timer_start = tm.perf_counter_ns()
+        logging.info("Parsing started")
+        self.parser.parseFile(osu_path)
+        logging.info("Parsing done. Time: " + str((tm.perf_counter_ns() - timer_start) // 1_000_000) + "ms")
+
+    def build_beatmap(self):
+        timer_start = tm.perf_counter_ns()
+        logging.info("Map building started")
+        self.parser.build_beatmap()
+        logging.info("Building done. Time: " + str((tm.perf_counter_ns() - timer_start) // 1_000_000) + "ms")
+
+    def sync_timings_to_pos(self):
+        for obj in self.parser.beatmap["hitObjects"]:
+            match obj["object_name"]:
+                case 'circle':
+                    self.hit_timings_to_pos[obj["startTime"]] = osu_cords_to_window_pos(size, obj["position"])
+                case 'slider':
+                    slider_len = len(obj["points"])
+                    # for x in range(slider_len):
+                    #     self.hit_timings_to_pos[round(obj["startTime"] + (x / slider_len) * obj["duration"])] = (
+                    #         osu_cords_to_window_pos(size, obj["points"][x]))
+                    for point_i in range(slider_len-1):
+                        interval = obj["duration"] / (slider_len-1)
+                        spacing = (obj["points"][point_i][0] - obj["points"][point_i+1][0],
+                                   obj["points"][point_i][1] - obj["points"][point_i+1][1])
+                        for x in range(int(interval)):
+                            cords_in_x = (obj["points"][point_i][0] - spacing[0]*(x/interval),
+                                          obj["points"][point_i][1] - spacing[1]*(x/interval))
+                            self.hit_timings_to_pos[round(obj["startTime"] + point_i*interval + x)] = (
+                                osu_cords_to_window_pos(size, cords_in_x))
+                # TODO : сделать обработку для спиннера
+
+
+# # соотносим тайминги с позицией мыши относительно окна
+# hit_timings_to_pos = dict()
+# for obj in beatmap["hitObjects"]:
+#     match obj["object_name"]:
+#         case 'circle':
+#             hit_timings_to_pos[obj["startTime"]] = osu_cords_to_window_pos(size, obj["position"])
+#         case 'slider':
+#             slider_len = len(obj["points"])
+#             for x in range(slider_len):
+#                 hit_timings_to_pos[round(obj["startTime"]+(x/slider_len)*obj["duration"])] = osu_cords_to_window_pos(size, obj["points"][x])
+#             # for point in obj["points"]:
+#             #     hit_timings_to_pos[obj["startTime"]] = osu_cords_to_window_pos(size, obj["position"])
+#         # TODO : сделать обработку для спиннера
 # окно для отладки
+
+first_song = Song("Gira Gira")
+first_song.parse_map_file("Gira Gira")
+first_song.build_beatmap()
+first_song.sync_timings_to_pos()
+
 app = QApplication(sys.argv)
 
 window = MainWindow()
 window.show()
-
+    
 app.exec()
 
 # окончание записи экрана
