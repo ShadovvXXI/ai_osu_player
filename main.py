@@ -21,6 +21,9 @@ import os
 
 logging.basicConfig(level=logging.INFO)
 
+# путь до папки с песнями
+osu_songs_directory = os.path.join(os.getenv('LOCALAPPDATA'), 'osu!', 'Songs')
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -93,34 +96,7 @@ region = (cl, ct, cl + size[0], ct + size[1])
 # создаем область для записи и начинаем ее
 camera = dxcam.create()
 camera.start(region=region)
-# for x in range(1):
-#     res_img = cv2.resize(camera.get_latest_frame(), (320, 180), cv2.INTER_AREA)
-#     Image.fromarray(res_img).show()
 
-# путь до папки с песнями
-osu_songs_directory = os.path.join(os.getenv('LOCALAPPDATA'), 'osu!', 'Songs')
-
-# # выбрать рандомную песню
-# maps = os.listdir(osu_songs_directory)
-# shuffle(maps)
-# map_path = os.path.join(osu_songs_directory, maps[0])
-#
-# # выбираем первый .osu файл
-# file = [x for x in os.listdir(map_path) if x.endswith(".osu")][0]
-# osu_path = os.path.join(map_path, file)
-# print(osu_path)
-#
-# # инициализируем парсер
-# parser = beatmapparser.BeatmapParser()
-#
-# # парсим файл и строим beatmap на основе файла
-# timer_start = tm.perf_counter_ns()
-# parser.parseFile(osu_path)
-# print("Parsing done. Time:", (tm.perf_counter_ns() - timer_start) // 1_000_000, 'ms')
-#
-# timer_start = tm.perf_counter_ns()
-# beatmap = parser.build_beatmap()
-# print("Building done. Time:", (tm.perf_counter_ns() - timer_start) // 1_000_000, 'ms')
 
 class DirectoryWithSongNotFoundError(Exception):
     pass
@@ -159,6 +135,7 @@ class Song:
         self.parser.build_beatmap()
         logging.info("Building done. Time: " + str((tm.perf_counter_ns() - timer_start) // 1_000_000) + "ms")
 
+    # соотносим тайминги с позицией мыши относительно окна
     def sync_timings_to_pos(self):
         for obj in self.parser.beatmap["hitObjects"]:
             match obj["object_name"]:
@@ -166,9 +143,6 @@ class Song:
                     self.hit_timings_to_pos[obj["startTime"]] = osu_cords_to_window_pos(size, obj["position"])
                 case 'slider':
                     slider_len = len(obj["points"])
-                    # for x in range(slider_len):
-                    #     self.hit_timings_to_pos[round(obj["startTime"] + (x / slider_len) * obj["duration"])] = (
-                    #         osu_cords_to_window_pos(size, obj["points"][x]))
                     for point_i in range(slider_len-1):
                         interval = obj["duration"] / (slider_len-1)
                         spacing = (obj["points"][point_i][0] - obj["points"][point_i+1][0],
@@ -179,22 +153,6 @@ class Song:
                             self.hit_timings_to_pos[round(obj["startTime"] + point_i*interval + x)] = (
                                 osu_cords_to_window_pos(size, cords_in_x))
                 # TODO : сделать обработку для спиннера
-
-
-# # соотносим тайминги с позицией мыши относительно окна
-# hit_timings_to_pos = dict()
-# for obj in beatmap["hitObjects"]:
-#     match obj["object_name"]:
-#         case 'circle':
-#             hit_timings_to_pos[obj["startTime"]] = osu_cords_to_window_pos(size, obj["position"])
-#         case 'slider':
-#             slider_len = len(obj["points"])
-#             for x in range(slider_len):
-#                 hit_timings_to_pos[round(obj["startTime"]+(x/slider_len)*obj["duration"])] = osu_cords_to_window_pos(size, obj["points"][x])
-#             # for point in obj["points"]:
-#             #     hit_timings_to_pos[obj["startTime"]] = osu_cords_to_window_pos(size, obj["position"])
-#         # TODO : сделать обработку для спиннера
-# окно для отладки
 
 first_song = Song("Gira Gira")
 first_song.parse_map_file("Gira Gira")
