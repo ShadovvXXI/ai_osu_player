@@ -12,7 +12,7 @@ import mouse
 import time as tm
 import logging
 
-from osuparser import beatmapparser
+from osuparser import beatmapparser, slidercalc
 from random import shuffle
 import os
 
@@ -145,11 +145,14 @@ class Song:
                     slider_len = len(obj["points"])
                     for point_i in range(slider_len-1):
                         interval = obj["duration"] / (slider_len-1)
-                        spacing = (obj["points"][point_i][0] - obj["points"][point_i+1][0],
-                                   obj["points"][point_i][1] - obj["points"][point_i+1][1])
+
+                        this_point = obj["points"][point_i]
+                        next_point = obj["points"][point_i+1]
+                        spacing = (this_point[0] - next_point[0],
+                                   this_point[1] - next_point[1])
                         for x in range(int(interval)):
-                            cords_in_x = (obj["points"][point_i][0] - spacing[0]*(x/interval),
-                                          obj["points"][point_i][1] - spacing[1]*(x/interval))
+                            cords_in_x = (this_point[0] - spacing[0]*(x/interval),
+                                          this_point[1] - spacing[1]*(x/interval))
                             self.hit_timings_to_pos[round(obj["startTime"] + point_i*interval + x)] = (
                                 osu_cords_to_window_pos(size, cords_in_x))
                 # TODO : сделать обработку для спиннера
