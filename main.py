@@ -142,19 +142,14 @@ class Song:
                 case 'circle':
                     self.hit_timings_to_pos[obj["startTime"]] = osu_cords_to_window_pos(size, obj["position"])
                 case 'slider':
-                    slider_len = len(obj["points"])
-                    for point_i in range(slider_len-1):
-                        interval = obj["duration"] / (slider_len-1)
+                    for ms in range(obj["duration"] + 1):
+                        moment = obj["startTime"] + ms
 
-                        this_point = obj["points"][point_i]
-                        next_point = obj["points"][point_i+1]
-                        spacing = (this_point[0] - next_point[0],
-                                   this_point[1] - next_point[1])
-                        for x in range(int(interval)):
-                            cords_in_x = (this_point[0] - spacing[0]*(x/interval),
-                                          this_point[1] - spacing[1]*(x/interval))
-                            self.hit_timings_to_pos[round(obj["startTime"] + point_i*interval + x)] = (
-                                osu_cords_to_window_pos(size, cords_in_x))
+                        point = slidercalc.get_end_point(obj["curveType"], (obj["pixelLength"] * ms / obj["duration"]), obj["points"])
+                        if point is None:
+                            point = obj["points"][0]
+
+                        self.hit_timings_to_pos[moment] = (osu_cords_to_window_pos(size, point))
                 # TODO : сделать обработку для спиннера
 
 first_song = Song("Gira Gira")
