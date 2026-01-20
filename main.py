@@ -1,5 +1,3 @@
-from tkinter.font import names
-
 import dxcam
 from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtGui import QPixmap, QImage
@@ -13,7 +11,6 @@ import time as tm
 import logging
 
 from osuparser import beatmapparser, slidercalc
-from random import shuffle
 import os
 
 # import tensorflow as tf
@@ -104,6 +101,12 @@ class DirectoryWithSongNotFoundError(Exception):
 class MapFileNotFoundError(Exception):
     pass
 
+def approach_time_ms(ar):
+    if ar <= 5:
+        return int(1800 - 120 * ar)
+    else:
+        return int(1200 - 150 * (ar - 5))
+
 class Song:
     def __init__(self, name):
         if name not in os.listdir(osu_songs_directory):
@@ -111,6 +114,8 @@ class Song:
         self.song_name = name
         self.file = None
         self.parser = None
+        self.approach_time = None
+        self.part_of_approach_time = None
         self.hit_timings_to_pos = dict()
 
     def parse_map_file(self, map_name):
@@ -137,7 +142,39 @@ class Song:
 
     # соотносим тайминги с позицией мыши относительно окна
     def sync_timings_to_pos(self):
+        # время появления объекта до момента его нажатия
+        self.approach_time = approach_time_ms(float(self.parser.beatmap["ApproachRate"]))
+        self.part_of_approach_time = int(self.approach_time / 10)
+        logging.info("Syncing timings to pos started")
+        # заполняем время до начала карты центром экрана
+        for ms in range(self.parser.beatmap["hitObjects"][0]["startTime"]-self.approach_time):
+            self.hit_timings_to_pos[ms] = ((region[2]-region[0])/2, (region[3]-region[1])/2)
+
         for obj in self.parser.beatmap["hitObjects"]:
+            prev_point = self.hit_timings_to_pos[max(self.hit_timings_to_pos.keys())]
+            # TODO : сделать правильную обработку карт с появлением первого объекта до начала таймера
+            # А кончается Б начинается -> курсор плавно перемещается от А к Б
+            # А кончается Б не начинается -> курсор остается в Б
+            for moment in range(max(self.hit_timings_to_pos.keys())+1, obj["startTime"]):
+                if moment == 10685:
+                    print()
+                if obj["startTime"] - self.approach_time < moment < obj["startTime"] - self.part_of_approach_time:
+                    time_progress = (moment - (obj["startTime"] - self.approach_time)) / self.approach_time
+
+                    cords = osu_cords_to_window_pos(size, obj["position"])
+                    cords_progress = (cords[0] - prev_point[0], cords[1] - prev_point[1])
+
+                    x = prev_point[0] + cords_progress[0] * time_progress
+                    y = prev_point[0] + cords_progress[1] * time_progress
+
+                    point = (x, y)
+                elif moment > obj["startTime"] - self.part_of_approach_time:
+                    point = osu_cords_to_window_pos(size, obj["position"])
+                else:
+                    point = self.hit_timings_to_pos[max(self.hit_timings_to_pos.keys())]
+                self.hit_timings_to_pos[moment] = (int(point[0]), int(point[1]))
+
+            # заполняем тайминги объектов
             match obj["object_name"]:
                 case 'circle':
                     self.hit_timings_to_pos[obj["startTime"]] = osu_cords_to_window_pos(size, obj["position"])
@@ -145,15 +182,17 @@ class Song:
                     for ms in range(obj["duration"] + 1):
                         moment = obj["startTime"] + ms
 
-                        point = slidercalc.get_end_point(obj["curveType"], (obj["pixelLength"] * ms / obj["duration"]), obj["points"])
+                        point = slidercalc.get_end_point(obj["curveType"],
+                                                         (obj["pixelLength"] * ms / obj["duration"]), obj["points"])
                         if point is None:
                             point = obj["points"][0]
 
                         self.hit_timings_to_pos[moment] = (osu_cords_to_window_pos(size, point))
                 # TODO : сделать обработку для спиннера
+        logging.info("Syncing timings to pos ended")
 
-first_song = Song("Gira Gira")
-first_song.parse_map_file("Gira Gira")
+first_song = Song("Rory")
+first_song.parse_map_file("Rory")
 first_song.build_beatmap()
 first_song.sync_timings_to_pos()
 
