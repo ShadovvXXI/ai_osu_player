@@ -29,7 +29,7 @@ class Recorder(QMainWindow):
         self.setWindowTitle("My App")
         self.songs = {}
         for name in song_names:
-            self.songs[name] = {"time_pos": self.load_song(name)}
+            self.songs[name] = {"file": self.load_song(name)}
         self.timer()
         self.start_timer = None
         self.recorded_images = dict()
@@ -88,21 +88,33 @@ class Recorder(QMainWindow):
     def load_song(self, name):
         new_song = Song(name)
         if new_song.load_from_file():
-            return new_song
+            new_song.parse_map_file(name)
+            new_song.build_beatmap()
         else:
             new_song.parse_map_file(name)
             new_song.build_beatmap()
-            new_song.sync_timings_to_pos()
-            return new_song
+            new_song.sync_timings_to_pos(save_to_file=True)
+        return new_song
 
     def sync_image_to_pos(self):
         for song in self.songs:
             if song in self.recorded_song_name:
-                # TODO : debug and improve synchronization
-                pos = self.songs[song]["time_pos"].hit_timings_to_pos
-                for timing in self.recorded_images:
-                    self.songs[song][timing] = {"pos":pos[timing]}
-                    self.songs[song][timing] = {"images": self.recorded_images[timing]}
+                pos = self.songs[song]["file"].hit_timings_to_pos
+                max_pos = max(pos)
+                for timing in sorted(self.recorded_images):
+                    if timing > max_pos:
+                        break
+                        
+                    if timing in pos:
+                        current_pos = pos[timing]
+                    else:
+                        current_pos = self.songs[song][timing-1]
+                        # TODO : сделать замещение позиции при отсутствии тайминга (в первый момент timing-1 не сработает)
+
+                    self.songs[song][timing] = {
+                        "pos":current_pos,
+                        "images": self.recorded_images[timing]
+                    }
                 break
 
 
@@ -167,12 +179,13 @@ class Song:
         timer_start = tm.perf_counter_ns()
         logging.info("Map building started")
         self.parser.build_beatmap()
+        # время перед началом песни
+        self.lead_in = int(self.parser.beatmap["AudioLeadIn"])
         logging.info("Building done. Time: " + str((tm.perf_counter_ns() - timer_start) // 1_000_000) + "ms")
 
     # соотносим тайминги с позицией мыши относительно окна
-    def sync_timings_to_pos(self):
+    def sync_timings_to_pos(self, save_to_file):
         # время появления объекта до момента его нажатия
-        self.lead_in = int(self.parser.beatmap["AudioLeadIn"])
         self.approach_time = approach_time_ms(float(self.parser.beatmap["ApproachRate"]))
         self.part_of_approach_time = int(self.approach_time / 10)
         logging.info("Syncing timings to pos started")
@@ -220,6 +233,7 @@ class Song:
 
                         self.hit_timings_to_pos[moment] = (osu_cords_to_window_pos(size, point))
                 # TODO : сделать обработку для спиннера
+        if save_to_file: self.save_to_file()
         logging.info("Syncing timings to pos ended")
 
     def save_to_file(self):
@@ -233,6 +247,7 @@ class Song:
                 self.hit_timings_to_pos = pickle.load(f)
                 return True
         except Exception as e:
+            # TODO : выводится позже необходимого, изменить логику
             print("Time_to_pos file corrupted or not find:", e)
             return False
 
@@ -245,7 +260,7 @@ class Song:
 
 app = QApplication(sys.argv)
 
-window = Recorder()
+window = Recorder(["Rory"])
 window.show()
     
 app.exec()
