@@ -42,7 +42,7 @@ def draw_image_with_circle(image, center):
     cv2.circle(image, center, radius, color, thickness)
 
     success = cv2.imwrite("result.jpg", image)
-    # TODO : неправильно прописывает координаты, вероятно проблемы с переводом из оконных в учебные,
+    # TODO : неправильно прописывает координаты, вероятно неправильный расчет растояния между точками
     #  возможно сдвиг тайминга неправильный
     if not success:
         raise IOError("Не удалось сохранить изображение")
@@ -139,7 +139,7 @@ class Recorder(QMainWindow):
                         "image": self.recorded_images[timing]
                     }
 
-                    if timing > 13000:
+                    if timing > 12000:
                         draw_image_with_circle(self.songs[song][timing]["image"], self.songs[song][timing]["pos"])
                 break
 
@@ -219,41 +219,46 @@ class Song:
         self.part_of_approach_time = int(self.approach_time / 10)
         logging.info("Syncing timings to pos started")
         # заполняем время до начала карты центром экрана
-        if not self.lead_in:
-            for ms in range(self.parser.beatmap["hitObjects"][0]["startTime"]-self.approach_time):
-                self.hit_timings_to_pos[ms] = ((region[2]-region[0])/2, (region[3]-region[1])/2)
-        else:
-            for ms in range(-self.lead_in, self.parser.beatmap["hitObjects"][0]["startTime"] - self.approach_time):
-                self.hit_timings_to_pos[ms] = ((region[2] - region[0]) / 2, (region[3] - region[1]) / 2)
+        center = ((region[2] - region[0]) / 2, (region[3] - region[1]) / 2)
+        for ms in range(-self.lead_in if self.lead_in else 0,
+                        self.parser.beatmap["hitObjects"][0]["startTime"] - self.approach_time):
+            self.hit_timings_to_pos[ms] = center
 
         for obj in self.parser.beatmap["hitObjects"]:
-            prev_point = self.hit_timings_to_pos[max(self.hit_timings_to_pos.keys())]
+            start_time = obj["startTime"]
+            position = obj["position"]
+            prev_object_timing = max(self.hit_timings_to_pos)
+            prev_point = self.hit_timings_to_pos[prev_object_timing]
             # А кончается Б начинается -> курсор плавно перемещается от А к Б
             # А кончается Б не начинается -> курсор остается в А
-            for moment in range(max(self.hit_timings_to_pos.keys())+1, obj["startTime"]):
-                if obj["startTime"] - self.approach_time < moment < obj["startTime"] - self.part_of_approach_time:
-                    time_progress = (moment - (obj["startTime"] - self.approach_time)) / self.approach_time
+            # TODO : ZERO OPTIMIZATION SUPREMACY FUNC - NEED MORE OPTIMIZE IN IF-ELSE - MAYBE SEPARATE IT AND MADE 3 FOR
+            for moment in range(prev_object_timing+1, start_time):
+                if moment > 12015:
+                    print()
 
-                    cords = osu_cords_to_window_pos(size, obj["position"])
+                if start_time - self.approach_time < moment < start_time - self.part_of_approach_time:
+                    time_progress = (moment - (start_time - self.approach_time)) / self.approach_time
+
+                    cords = osu_cords_to_window_pos(size, position)
                     cords_progress = (cords[0] - prev_point[0], cords[1] - prev_point[1])
 
                     x = prev_point[0] + cords_progress[0] * time_progress
                     y = prev_point[0] + cords_progress[1] * time_progress
 
                     point = (x, y)
-                elif moment > obj["startTime"] - self.part_of_approach_time:
-                    point = osu_cords_to_window_pos(size, obj["position"])
+                elif moment > start_time - self.part_of_approach_time:
+                    point = osu_cords_to_window_pos(size, position)
                 else:
-                    point = self.hit_timings_to_pos[max(self.hit_timings_to_pos.keys())]
+                    point = self.hit_timings_to_pos[prev_object_timing]
                 self.hit_timings_to_pos[moment] = (int(point[0]), int(point[1]))
 
-            # заполняем тайминги объектов
+            # заполняем тайминги объекта
             match obj["object_name"]:
                 case 'circle':
-                    self.hit_timings_to_pos[obj["startTime"]] = osu_cords_to_window_pos(size, obj["position"])
+                    self.hit_timings_to_pos[start_time] = osu_cords_to_window_pos(size, position)
                 case 'slider':
                     for ms in range(obj["duration"] + 1):
-                        moment = obj["startTime"] + ms
+                        moment = start_time + ms
 
                         point = slidercalc.get_end_point(obj["curveType"],
                                                          (obj["pixelLength"] * ms / obj["duration"]), obj["points"])
