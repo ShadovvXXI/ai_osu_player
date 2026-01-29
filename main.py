@@ -11,8 +11,6 @@ import time as tm
 import logging
 import pickle
 
-import cv2
-
 from osuparser import beatmapparser, slidercalc
 import os
 
@@ -42,7 +40,7 @@ def draw_image_with_circle(image, center):
     cv2.circle(image, center, radius, color, thickness)
 
     success = cv2.imwrite("result.jpg", image)
-    # TODO : неправильно прописывает координаты, вероятно неправильный расчет растояния между точками
+    # TODO : неправильно прописывает координаты, они в осу находятся на другой позиции, UI вне координат
     #  возможно сдвиг тайминга неправильный
     if not success:
         raise IOError("Не удалось сохранить изображение")
@@ -233,8 +231,8 @@ class Song:
             # А кончается Б не начинается -> курсор остается в А
             # TODO : ZERO OPTIMIZATION SUPREMACY FUNC - NEED MORE OPTIMIZE IN IF-ELSE - MAYBE SEPARATE IT AND MADE 3 FOR
             for moment in range(prev_object_timing+1, start_time):
-                if moment > 12015:
-                    print()
+                # if moment > 12015:
+                #     print()
 
                 if start_time - self.approach_time < moment < start_time - self.part_of_approach_time:
                     time_progress = (moment - (start_time - self.approach_time)) / self.approach_time
@@ -243,7 +241,7 @@ class Song:
                     cords_progress = (cords[0] - prev_point[0], cords[1] - prev_point[1])
 
                     x = prev_point[0] + cords_progress[0] * time_progress
-                    y = prev_point[0] + cords_progress[1] * time_progress
+                    y = prev_point[1] + cords_progress[1] * time_progress
 
                     point = (x, y)
                 elif moment > start_time - self.part_of_approach_time:
