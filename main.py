@@ -11,6 +11,8 @@ import time as tm
 import logging
 import pickle
 
+import cv2
+
 from osuparser import beatmapparser, slidercalc
 import os
 
@@ -21,6 +23,29 @@ logging.basicConfig(level=logging.INFO)
 
 # путь до папки с песнями
 osu_songs_directory = os.path.join(os.getenv('LOCALAPPDATA'), 'osu!', 'Songs')
+
+# размеры изображения для нейросети
+WIDTH = 250
+HEIGHT = 125
+
+
+def draw_image_with_circle(image, center):
+    # радиус круга в пикселях
+    radius = 10
+
+    # цвет в формате BGR (чёрный)
+    color = (0, 0, 0)
+
+    # толщина -1 означает "залитый круг"
+    thickness = -1
+
+    cv2.circle(image, center, radius, color, thickness)
+
+    success = cv2.imwrite("result.jpg", image)
+    # TODO : неправильно прописывает координаты, вероятно проблемы с переводом из оконных в учебные,
+    #  возможно сдвиг тайминга неправильный
+    if not success:
+        raise IOError("Не удалось сохранить изображение")
 
 class Recorder(QMainWindow):
     def __init__(self, song_names):
@@ -62,7 +87,7 @@ class Recorder(QMainWindow):
             self.training_time += 1
 
     def update_image(self):
-        res_img = cv2.resize(camera.get_latest_frame(), (250, 125), cv2.INTER_AREA)
+        res_img = cv2.resize(camera.get_latest_frame(), (WIDTH, HEIGHT), cv2.INTER_AREA)
         # Image.fromarray(res_img).show()
 
         # преобразуем в формат подходящий для Qt
@@ -87,12 +112,9 @@ class Recorder(QMainWindow):
 
     def load_song(self, name):
         new_song = Song(name)
-        if new_song.load_from_file():
-            new_song.parse_map_file(name)
-            new_song.build_beatmap()
-        else:
-            new_song.parse_map_file(name)
-            new_song.build_beatmap()
+        new_song.parse_map_file(name)
+        new_song.build_beatmap()
+        if not new_song.load_from_file():
             new_song.sync_timings_to_pos(save_to_file=True)
         return new_song
 
@@ -104,22 +126,29 @@ class Recorder(QMainWindow):
                 for timing in sorted(self.recorded_images):
                     if timing > max_pos:
                         break
-                        
+
                     if timing in pos:
                         current_pos = pos[timing]
+                    elif pos[timing-1]:
+                        current_pos = pos[timing-1]
                     else:
-                        current_pos = self.songs[song][timing-1]
-                        # TODO : сделать замещение позиции при отсутствии тайминга (в первый момент timing-1 не сработает)
+                        continue
 
                     self.songs[song][timing] = {
-                        "pos":current_pos,
-                        "images": self.recorded_images[timing]
+                        "pos": window_pos_to_train_pos(current_pos),
+                        "image": self.recorded_images[timing]
                     }
+
+                    if timing > 13000:
+                        draw_image_with_circle(self.songs[song][timing]["image"], self.songs[song][timing]["pos"])
                 break
 
 
 def osu_cords_to_window_pos(resolution, cords):
     return int(cords[0] / 512 * resolution[0]), int(cords[1] / 384 * resolution[1])
+
+def window_pos_to_train_pos(pos):
+    return int(pos[0] / size[0] * WIDTH), int(pos[1] / size[1] * HEIGHT)
 
 
 # обработчик окна и его координаты на экране
@@ -251,12 +280,6 @@ class Song:
             print("Time_to_pos file corrupted or not find:", e)
             return False
 
-
-# first_song = Song("Rory")
-# first_song.parse_map_file("Rory")
-# first_song.build_beatmap()
-# first_song.sync_timings_to_pos()
-# first_song.load_from_file()
 
 app = QApplication(sys.argv)
 
