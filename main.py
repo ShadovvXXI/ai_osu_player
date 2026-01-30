@@ -40,8 +40,7 @@ def draw_image_with_circle(image, center):
     cv2.circle(image, center, radius, color, thickness)
 
     success = cv2.imwrite("result.jpg", image)
-    # TODO : неправильно прописывает координаты, они в осу находятся на другой позиции, UI вне координат
-    #  возможно сдвиг тайминга неправильный
+    # TODO : сдвиг тайминга неправильный, рывки при слайдерах и переходе от А к Б
     if not success:
         raise IOError("Не удалось сохранить изображение")
 
@@ -133,7 +132,7 @@ class Recorder(QMainWindow):
                         continue
 
                     self.songs[song][timing] = {
-                        "pos": window_pos_to_train_pos(current_pos),
+                        "pos": window_pos_to_train_pos(size, current_pos),
                         "image": self.recorded_images[timing]
                     }
 
@@ -141,12 +140,12 @@ class Recorder(QMainWindow):
                         draw_image_with_circle(self.songs[song][timing]["image"], self.songs[song][timing]["pos"])
                 break
 
+# TODO : нужна адаптивность под разные устройства
+def osu_cords_to_window_pos(cords):
+    return int(cords[0] * 2.06 + 431), int(cords[1] * 2.06 + 117)
 
-def osu_cords_to_window_pos(resolution, cords):
-    return int(cords[0] / 512 * resolution[0]), int(cords[1] / 384 * resolution[1])
-
-def window_pos_to_train_pos(pos):
-    return int(pos[0] / size[0] * WIDTH), int(pos[1] / size[1] * HEIGHT)
+def window_pos_to_train_pos(resolution, pos):
+    return int(pos[0] / resolution[0] * WIDTH), int(pos[1] / resolution[1] * HEIGHT)
 
 
 # обработчик окна и его координаты на экране
@@ -237,7 +236,7 @@ class Song:
                 if start_time - self.approach_time < moment < start_time - self.part_of_approach_time:
                     time_progress = (moment - (start_time - self.approach_time)) / self.approach_time
 
-                    cords = osu_cords_to_window_pos(size, position)
+                    cords = osu_cords_to_window_pos(position)
                     cords_progress = (cords[0] - prev_point[0], cords[1] - prev_point[1])
 
                     x = prev_point[0] + cords_progress[0] * time_progress
@@ -245,7 +244,7 @@ class Song:
 
                     point = (x, y)
                 elif moment > start_time - self.part_of_approach_time:
-                    point = osu_cords_to_window_pos(size, position)
+                    point = osu_cords_to_window_pos(position)
                 else:
                     point = self.hit_timings_to_pos[prev_object_timing]
                 self.hit_timings_to_pos[moment] = (int(point[0]), int(point[1]))
@@ -253,7 +252,7 @@ class Song:
             # заполняем тайминги объекта
             match obj["object_name"]:
                 case 'circle':
-                    self.hit_timings_to_pos[start_time] = osu_cords_to_window_pos(size, position)
+                    self.hit_timings_to_pos[start_time] = osu_cords_to_window_pos(position)
                 case 'slider':
                     for ms in range(obj["duration"] + 1):
                         moment = start_time + ms
@@ -263,7 +262,7 @@ class Song:
                         if point is None:
                             point = obj["points"][0]
 
-                        self.hit_timings_to_pos[moment] = (osu_cords_to_window_pos(size, point))
+                        self.hit_timings_to_pos[moment] = osu_cords_to_window_pos(point)
                 # TODO : сделать обработку для спиннера
         if save_to_file: self.save_to_file()
         logging.info("Syncing timings to pos ended")
