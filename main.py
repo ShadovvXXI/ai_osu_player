@@ -14,9 +14,6 @@ import pickle
 from osuparser import beatmapparser, slidercalc
 import os
 
-# import tensorflow as tf
-# from tensorflow import keras
-
 logging.basicConfig(level=logging.INFO)
 
 # путь до папки с песнями
@@ -94,7 +91,6 @@ class Recorder(QMainWindow):
 
     def update_image(self):
         res_img = cv2.resize(camera.get_latest_frame(), (WIDTH, HEIGHT), cv2.INTER_AREA)
-        # Image.fromarray(res_img).show()
 
         # преобразуем в формат подходящий для Qt
         h, w, ch = res_img.shape
@@ -146,13 +142,12 @@ class Recorder(QMainWindow):
                     }
 
                     # debug func
-                    # if timing > 10000:
-                    #     draw_image_with_circle(self.songs[song][timing]["image"], self.songs[song][timing]["pos"])
+                    if timing > 10000:
+                        draw_image_with_circle(self.songs[song][timing]["image"], self.songs[song][timing]["pos"])
                 break
 
-# TODO : нужна адаптивность под разные устройства
 def osu_cords_to_window_pos(cords):
-    return int(cords[0] * 2.06 + 431), int(cords[1] * 2.06 + 117)
+    return int(cords[0] * scale + offset_x), int(cords[1] * scale + offset_y)
 
 def window_pos_to_train_pos(resolution, pos):
     return int(pos[0] / resolution[0] * WIDTH), int(pos[1] / resolution[1] * HEIGHT)
@@ -165,6 +160,18 @@ cl, ct = ClientToScreen(window_handle, (l, t))
 
 size = (r - l, b - t)
 region = (cl, ct, cl + size[0], ct + size[1])
+
+# по наблюдениям высота поля всегда 80% от общей высоты окна
+playfield_h = 0.8 * size[1]
+# соотношение поля всегда 3/4
+playfield_w = playfield_h * 4/3
+# вычисляем scale по длине с наименьшим коэфициентом изменяемости
+scale = playfield_h / 384
+
+# расстояние слева и справа всегда одинаковое
+offset_x = (size[0] - playfield_w) / 2
+# по наблюдениям смещение свеху всегда 11,6% от общей высоты, снизу - 8,3%
+offset_y = size[1] * 0.116
 
 # создаем область для записи и начинаем ее
 camera = dxcam.create()
