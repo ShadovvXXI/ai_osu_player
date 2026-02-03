@@ -31,7 +31,7 @@ def draw_image_with_circle(image, center):
     # цвет в формате BGR (чёрный)
     color = (0, 0, 0)
 
-    # толщина -1 означает "залитый круг"
+    # залитый круг
     thickness = -1
 
     cv2.circle(image, center, radius, color, thickness)
@@ -297,8 +297,7 @@ class Song:
                 self.hit_timings_to_pos = pickle.load(f)
                 return True
         except Exception as e:
-            # TODO : выводится позже необходимого, изменить логику
-            print("Time_to_pos file corrupted or not find:", e)
+            logging.info("Time_to_pos file corrupted or not find: " + str(e))
             return False
 
 
