@@ -244,28 +244,26 @@ class Song:
             prev_object_timing = max(self.hit_timings_to_pos)
             prev_point = self.hit_timings_to_pos[prev_object_timing]
             approach_start_time = min(obj_start_time-prev_object_timing, self.approach_time)
+
             # А кончается Б начинается -> курсор плавно перемещается от А к Б
             # А кончается Б не начинается -> курсор остается в А
-            # TODO : ZERO OPTIMIZATION SUPREMACY FUNC - NEED MORE OPTIMIZE IN IF-ELSE - MAYBE SEPARATE IT AND MADE 3 FOR
-            for moment in range(prev_object_timing+1, obj_start_time):
-                # if moment > 12177:
-                #     print(sep="", end="")
+            for moment in range(prev_object_timing+1, obj_start_time - approach_start_time + 1):
+                point = self.hit_timings_to_pos[prev_object_timing]
+                self.hit_timings_to_pos[moment] = (int(point[0]), int(point[1]))
 
-                if obj_start_time - approach_start_time < moment <= obj_start_time - self.part_of_approach_time:
-                    time_progress = ((moment - (obj_start_time - approach_start_time))
-                                     / (approach_start_time-self.part_of_approach_time))
+            cords = osu_cords_to_window_pos(position)
+            cords_progress = (cords[0] - prev_point[0], cords[1] - prev_point[1])
+            for moment in range(obj_start_time - approach_start_time + 1, obj_start_time - self.part_of_approach_time + 1):
+                time_progress = ((moment - (obj_start_time - approach_start_time))
+                                 / (approach_start_time - self.part_of_approach_time))
 
-                    cords = osu_cords_to_window_pos(position)
-                    cords_progress = (cords[0] - prev_point[0], cords[1] - prev_point[1])
+                x = prev_point[0] + cords_progress[0] * time_progress
+                y = prev_point[1] + cords_progress[1] * time_progress
 
-                    x = prev_point[0] + cords_progress[0] * time_progress
-                    y = prev_point[1] + cords_progress[1] * time_progress
+                self.hit_timings_to_pos[moment] = (int(x), int(y))
 
-                    point = (x, y)
-                elif moment > obj_start_time - self.part_of_approach_time:
-                    point = osu_cords_to_window_pos(position)
-                else:
-                    point = self.hit_timings_to_pos[prev_object_timing]
+            for moment in range(obj_start_time - self.part_of_approach_time + 1, obj_start_time):
+                point = osu_cords_to_window_pos(position)
                 self.hit_timings_to_pos[moment] = (int(point[0]), int(point[1]))
 
             # заполняем тайминги объекта
