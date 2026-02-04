@@ -23,7 +23,7 @@ osu_songs_directory = os.path.join(os.getenv('LOCALAPPDATA'), 'osu!', 'Songs')
 WIDTH = 250
 HEIGHT = 125
 
-
+# TODO : рефактор всего кода, разбиение на файлы
 def draw_image_with_circle(image, center):
     # радиус круга в пикселях
     radius = 10
@@ -52,9 +52,10 @@ class Recorder(QMainWindow):
         self.start_timer = None
         self.starting = False
         self.recorded_images = dict()
-        self.recorded_song_name = None
+        self.recorded_song_name = ""
         self.training_state = False
         self.training_time = 0
+        self.skip_time = 280
 
     def timer(self):
         timer = QtCore.QTimer(self)
@@ -76,7 +77,7 @@ class Recorder(QMainWindow):
                 timer = QtCore.QTimer(self)
                 timer.setSingleShot(True)
                 timer.timeout.connect(self.starting_skip)
-                timer.start(280)
+                timer.start(self.skip_time)
 
         image = self.update_image()
         if self.training_state:
@@ -122,10 +123,12 @@ class Recorder(QMainWindow):
 
     def sync_image_to_pos(self):
         for song in self.songs:
-            if song in self.recorded_song_name:
+            if song.lower() in self.recorded_song_name.lower():
                 pos = self.songs[song]["file"].hit_timings_to_pos
                 max_pos = max(pos)
-                for timing in sorted(self.recorded_images):
+                for moment in sorted(self.recorded_images):
+                    timing = (moment - self.songs[song]["file"].lead_in +
+                              (self.skip_time*1.3 if self.songs[song]["file"].lead_in else 0))
                     if timing > max_pos:
                         break
 
@@ -138,11 +141,11 @@ class Recorder(QMainWindow):
 
                     self.songs[song][timing] = {
                         "pos": window_pos_to_train_pos(size, current_pos),
-                        "image": self.recorded_images[timing]
+                        "image": self.recorded_images[moment]
                     }
 
                     # debug func
-                    if timing > 10000:
+                    if moment > 12000:
                         draw_image_with_circle(self.songs[song][timing]["image"], self.songs[song][timing]["pos"])
                 break
 
@@ -254,6 +257,8 @@ class Song:
             cords = osu_cords_to_window_pos(position)
             cords_progress = (cords[0] - prev_point[0], cords[1] - prev_point[1])
             for moment in range(obj_start_time - approach_start_time + 1, obj_start_time - self.part_of_approach_time + 1):
+                # if moment > 12177:
+                #     print(sep="", end="")
                 time_progress = ((moment - (obj_start_time - approach_start_time))
                                  / (approach_start_time - self.part_of_approach_time))
 
@@ -293,6 +298,7 @@ class Song:
         try:
             with open(self.song_name+".pkl", "rb") as f:
                 self.hit_timings_to_pos = pickle.load(f)
+                logging.info("Time_to_pos file loaded")
                 return True
         except Exception as e:
             logging.info("Time_to_pos file corrupted or not find: " + str(e))
