@@ -1,6 +1,8 @@
 from PyQt6 import QtCore, QtWidgets
 from PyQt6.QtGui import QPixmap, QImage
 from PyQt6.QtWidgets import QMainWindow
+from win32gui import FindWindow, GetClientRect, ClientToScreen
+import dxcam
 import time as tm
 import pygetwindow as gw
 import cv2
@@ -10,14 +12,38 @@ from utils import window_pos_to_train_pos, draw_image_with_circle
 
 # TODO : сериализация
 class Recorder(QMainWindow):
-    def __init__(self, song_names, camera, img_size, scale, offset):
+    def __init__(self, song_names, img_size):
         super().__init__()
+
+        # обработчик окна и его координаты на экране
+        window_handle = FindWindow(None, "osu!")
+        l, t, r, b = GetClientRect(window_handle)
+        cl, ct = ClientToScreen(window_handle, (l, t))
+
+        size = (r - l, b - t)
+        region = (cl, ct, cl + size[0], ct + size[1])
+
+        # по наблюдениям высота поля всегда 80% от общей высоты окна
+        playfield_h = 0.8 * size[1]
+        # соотношение поля всегда 3/4
+        playfield_w = playfield_h * 4 / 3
+        # вычисляем scale по длине с наименьшим коэфициентом изменяемости
+        self.scale = playfield_h / 384
+
+        # расстояние слева и справа всегда одинаковое
+        offset_x = (size[0] - playfield_w) / 2
+        # по наблюдениям смещение свеху всегда 11,6% от общей высоты, снизу - 8,3%
+        offset_y = size[1] * 0.116
+
+        self.offset = (offset_x, offset_y)
+
+        # создаем область для записи и начинаем ее
+        self.camera = dxcam.create(region=region)
+        self.camera.start()
+
         self.widget = QtWidgets.QLabel(self)
         self.setWindowTitle("My App")
-        self.camera = camera
         self.img_size = img_size
-        self.scale = scale
-        self.offset = offset
         self.songs = {}
         for name in song_names:
             self.songs[name] = {"file": self.load_song(name)}
@@ -29,6 +55,10 @@ class Recorder(QMainWindow):
         self.training_state = False
         self.training_time = 0
         self.skip_time = 280
+
+    def __del__(self):
+        # окончание записи экрана
+        self.camera.stop()
 
     def timer(self):
         timer = QtCore.QTimer(self)
