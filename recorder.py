@@ -8,18 +8,19 @@ import cv2
 from song import Song
 from utils import window_pos_to_train_pos, draw_image_with_circle
 
+# TODO : сериализация
 class Recorder(QMainWindow):
     def __init__(self, song_names, camera, img_size, scale, offset):
         super().__init__()
         self.widget = QtWidgets.QLabel(self)
         self.setWindowTitle("My App")
-        self.songs = {}
-        for name in song_names:
-            self.songs[name] = {"file": self.load_song(name)}
         self.camera = camera
         self.img_size = img_size
         self.scale = scale
         self.offset = offset
+        self.songs = {}
+        for name in song_names:
+            self.songs[name] = {"file": self.load_song(name)}
         self.timer()
         self.start_timer = None
         self.starting = False
@@ -91,7 +92,6 @@ class Recorder(QMainWindow):
         new_song.parse_map_file(name)
         new_song.build_beatmap()
         if not new_song.load_from_file():
-            # TODO : при текущей архитектуре новая синхронизация не запускается, возможно проблема с многопоточностью
             new_song.sync_timings_to_pos(self.camera.region, self.scale, self.offset, save_to_file=True)
         return new_song
 
