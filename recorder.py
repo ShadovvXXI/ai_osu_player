@@ -6,11 +6,12 @@ import dxcam
 import time as tm
 import pygetwindow as gw
 import cv2
+import pickle
+import logging
 
 from song import Song
 from utils import window_pos_to_train_pos, draw_image_with_circle
 
-# TODO : сериализация
 class Recorder(QMainWindow):
     def __init__(self, song_names, img_size):
         super().__init__()
@@ -88,7 +89,7 @@ class Recorder(QMainWindow):
             self.recorded_images[elapsed_ms] = image
 
         if "osu!" in gw.getAllTitles() and self.training_state:
-            self.sync_image_to_pos()
+            self.sync_image_to_pos(save_to_file=True)
             self.recorded_images = dict()
             self.training_state = False
             self.training_time += 1
@@ -125,7 +126,7 @@ class Recorder(QMainWindow):
             new_song.sync_timings_to_pos(self.camera.region, self.scale, self.offset, save_to_file=True)
         return new_song
 
-    def sync_image_to_pos(self):
+    def sync_image_to_pos(self, save_to_file):
         for song in self.songs:
             if song.lower() in self.recorded_song_name.lower():
                 pos = self.songs[song]["file"].hit_timings_to_pos
@@ -152,4 +153,21 @@ class Recorder(QMainWindow):
                     # debug func
                     if moment > 3000:
                         draw_image_with_circle(self.songs[song][timing]["image"], self.songs[song][timing]["pos"])
+
+                if save_to_file: save_to_file(self, song)
                 break
+
+    def save_to_file(self, song_name):
+        if len(self.songs[song_name])>2:
+            with open("records\\"+song_name+".pkl", "wb") as f:
+                pickle.dump(self.songs[song_name], f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def load_from_file(self, song_name):
+        try:
+            with open("records\\"+song_name+".pkl", "rb") as f:
+                self.songs[song_name] = pickle.load(f)
+                logging.info("Time_to_img_and_pos file loaded")
+                return True
+        except Exception as e:
+            logging.info("Time_to_img_and_pos file corrupted or not find: " + str(e))
+            return False

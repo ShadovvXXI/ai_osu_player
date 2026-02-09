@@ -113,12 +113,12 @@ class Song:
 
     def save_to_file(self):
         if self.hit_timings_to_pos:
-            with open(self.song_name+".pkl", "wb") as f:
+            with open("songs\\"+self.song_name+".pkl", "wb") as f:
                 pickle.dump(self.hit_timings_to_pos, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     def load_from_file(self):
         try:
-            with open(self.song_name+".pkl", "rb") as f:
+            with open("songs\\"+self.song_name+".pkl", "rb") as f:
                 self.hit_timings_to_pos = pickle.load(f)
                 logging.info("Time_to_pos file loaded")
                 return True
