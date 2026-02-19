@@ -39,7 +39,7 @@ class Recorder(QMainWindow):
         self.offset = (offset_x, offset_y)
 
         # создаем область для записи и начинаем ее
-        self.camera = dxcam.create(region=region)
+        self.camera = dxcam.create(region=region, output_color="GRAY")
         self.camera.start()
 
         self.widget = QtWidgets.QLabel(self)
@@ -94,20 +94,19 @@ class Recorder(QMainWindow):
             self.training_state = False
             self.training_time += 1
 
-    # TODO : пересмотреть цветовую гамму (возможно сделать черную)
     def update_image(self):
         res_img = cv2.resize(self.camera.get_latest_frame(), self.img_size, interpolation=cv2.INTER_AREA)
 
         # преобразуем в формат подходящий для Qt
-        h, w, ch = res_img.shape
-        bytes_per_line = ch * w
+        h, w = res_img.shape
+        bytes_per_line = w
 
         qimg = QImage(
             res_img.data,
             w,
             h,
             bytes_per_line,
-            QImage.Format.Format_RGB888
+            QImage.Format.Format_Grayscale8
         )
 
         pixmap = QPixmap.fromImage(qimg)
@@ -154,7 +153,7 @@ class Recorder(QMainWindow):
                     if moment > 3000:
                         draw_image_with_circle(self.songs[song][timing]["image"], self.songs[song][timing]["pos"])
 
-                if save_to_file: save_to_file(self, song)
+                if save_to_file: self.save_to_file(song)
                 break
 
     def save_to_file(self, song_name):
