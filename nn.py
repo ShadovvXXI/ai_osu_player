@@ -2,7 +2,28 @@ import numpy as np
 import os
 import torch
 from torch import nn
+from torch.utils.data import Dataset, DataLoader
 
+
+class OsuImageDataset(Dataset):
+    def __init__(self, song, transform=None, target_transform=None):
+        self.song = song
+        self.transform = transform
+        self.target_transform = target_transform
+
+    def __len__(self):
+        return len(self.song)
+
+    def __getitem__(self, idx):
+        # TODO : Сделать основную реализацию датасета
+        image = 0
+        label = 0
+        # TODO : ____________________________________
+        if self.transform:
+            image = self.transform(image)
+        if self.target_transform:
+            label = self.target_transform(label)
+        return image, label
 
 class OsuNeuralNetwork(nn.Module):
     def __init__(self):
