@@ -7,18 +7,18 @@ from torch.utils.data import Dataset, DataLoader
 
 class OsuImageDataset(Dataset):
     def __init__(self, song, transform=None, target_transform=None):
-        self.song = song
+        self.song = {}
+        for idx, el in enumerate(sorted(filter(lambda x: type(x) is float, song.keys()))):
+            self.song[idx] = song[el]
         self.transform = transform
         self.target_transform = target_transform
 
     def __len__(self):
-        return len(self.song)
+        return len(self.song)-4
 
     def __getitem__(self, idx):
-        # TODO : Сделать основную реализацию датасета
-        image = 0
-        label = 0
-        # TODO : ____________________________________
+        image = [self.song[x]["image"] for x in range(idx, idx + 5)]
+        label = self.song[idx+4]["pos"] # регрессия последнего кадра, возможно нужно сделать предсказание последующего
         if self.transform:
             image = self.transform(image)
         if self.target_transform:
