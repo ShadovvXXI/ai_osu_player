@@ -184,3 +184,42 @@ class Recorder(QMainWindow):
         except Exception as e:
             logging.info("Time_to_img_and_pos file corrupted or not find: " + str(e))
             return False
+
+    def train_model(self, dataloader, loss_fn, optimizer, device):
+        size = len(dataloader.dataset)
+
+        for batch, (X, y) in enumerate(dataloader):
+            X = X.to(device)
+            y = y.to(device)
+
+            pred = self.model(X)
+            loss = loss_fn(pred, y)
+
+            loss.backward()
+            optimizer.step()
+            optimizer.zero_grad()
+
+            if batch % 100 == 0:
+                loss, current = loss.item(), batch + len(X)
+                print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+
+    def test_model(self, dataloader, loss_fn, device):
+        self.model.eval()
+
+        size = len(dataloader.dataset)
+        num_batches = len(dataloader)
+        test_loss = 0
+        right_answers = 0
+
+        with torch.no_grad():
+            for X, y in dataloader:
+                X = X.to(device)
+                y = y.to(device)
+
+                pred = self.model(X)
+                test_loss += loss_fn(pred, y).item()
+                right_answers += y.eq(pred).sum().item()
+
+        test_loss /= num_batches
+        right_answers /= size
+        print(f"test error: \n accuracy: {(100 * right_answers):>0.1f}%, avg loss: {test_loss:>8f} \n")
