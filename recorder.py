@@ -9,7 +9,11 @@ import cv2
 import pickle
 import logging
 
+import torch
+from torch.utils.data import DataLoader
+
 from song import Song
+from nn import OsuImageDataset, OsuNeuralNetwork
 from utils import window_pos_to_train_pos, draw_image_with_circle
 
 class Recorder(QMainWindow):
@@ -41,6 +45,16 @@ class Recorder(QMainWindow):
         # создаем область для записи и начинаем ее
         self.camera = dxcam.create(region=region, output_color="GRAY")
         self.camera.start()
+
+        self.model = OsuNeuralNetwork()
+        device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+        self.model.to(device)
+        # TODO : функция потерь для 2 измерений
+        lr = 1e-3
+        self.optimizer = torch.optim.SGD(self.model.parameters(), lr=lr)
+
+        # dataset = OsuImageDataset(data)
+        # dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
 
         self.widget = QtWidgets.QLabel(self)
         self.setWindowTitle("My App")
