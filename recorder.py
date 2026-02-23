@@ -47,14 +47,12 @@ class Recorder(QMainWindow):
         self.camera.start()
 
         self.model = OsuNeuralNetwork()
-        device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
-        self.model.to(device)
-        # TODO : функция потерь для 2 измерений
+        self.device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+        self.model.to(self.device)
+        self.loss_func = torch.nn.SmoothL1Loss()
+        self.epochs = 5
         lr = 1e-3
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=lr)
-
-        # dataset = OsuImageDataset(data)
-        # dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
 
         self.widget = QtWidgets.QLabel(self)
         self.setWindowTitle("My App")
@@ -104,6 +102,14 @@ class Recorder(QMainWindow):
 
         if "osu!" in gw.getAllTitles() and self.training_state:
             self.sync_image_to_pos(save_to_file=True)
+
+            dataset = OsuImageDataset(self.songs[self.recorded_song_name])
+            dataloader = DataLoader(dataset, batch_size=1, shuffle=False)
+            for t in range(self.epochs):
+                print(f"Epoch: {t + 1}\n-------------------------------")
+                self.train_model(dataloader, self.loss_func, self.optimizer, self.device)
+                self.test_model(dataloader, self.loss_func, self.device)
+
             self.recorded_images = dict()
             self.training_state = False
             self.training_time += 1
@@ -168,6 +174,7 @@ class Recorder(QMainWindow):
                         draw_image_with_circle(self.songs[song][timing]["image"], self.songs[song][timing]["pos"])
 
                 if save_to_file: self.save_to_file(song)
+                self.recorded_song_name = song
                 break
 
     def save_to_file(self, song_name):
