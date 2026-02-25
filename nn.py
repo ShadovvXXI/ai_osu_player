@@ -10,6 +10,7 @@ class OsuImageDataset(Dataset):
         self.song = {}
         for idx, el in enumerate(sorted(filter(lambda x: type(x) is float, song.keys()))):
             self.song[idx] = song[el]
+        # TODO : возможно стоит нормировать входы
         self.transform = transform
         self.target_transform = target_transform
 
@@ -17,8 +18,8 @@ class OsuImageDataset(Dataset):
         return len(self.song)-4
 
     def __getitem__(self, idx):
-        image = [self.song[x]["image"] for x in range(idx, idx + 5)]
-        label = self.song[idx+4]["pos"] # регрессия последнего кадра, возможно нужно сделать предсказание последующего
+        image = torch.from_numpy(np.stack([self.song[x]["image"] for x in range(idx, idx + 5)], axis=0)).float() / 255.0
+        label = torch.tensor(self.song[idx+4]["pos"]) # регрессия последнего кадра, возможно нужно сделать предсказание последующего
         if self.transform:
             image = self.transform(image)
         if self.target_transform:
@@ -35,7 +36,7 @@ class OsuNeuralNetwork(nn.Module):
             nn.MaxPool2d(2, 2)
         )
         self.linear_part = nn.Sequential(
-            nn.Linear(8640, 100),
+            nn.Linear(6720, 100),
             nn.Linear(100, 2),
         )
 
