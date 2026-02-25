@@ -49,6 +49,7 @@ class Recorder(QMainWindow):
         self.model = OsuNeuralNetwork()
         self.device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
         self.model.to(self.device)
+        self.model.load_state_dict(torch.load("model.pth"))
         self.loss_func = torch.nn.SmoothL1Loss()
         self.epochs = 5
         lr = 1e-3
@@ -109,6 +110,8 @@ class Recorder(QMainWindow):
                 print(f"Epoch: {t + 1}\n-------------------------------")
                 self.train_model(dataloader, self.loss_func, self.optimizer, self.device)
                 self.test_model(dataloader, self.loss_func, self.device)
+
+            torch.save(self.model.state_dict(), "model.pth")
 
             self.recorded_images = dict()
             self.training_state = False
