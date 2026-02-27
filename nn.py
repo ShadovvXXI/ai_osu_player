@@ -1,17 +1,26 @@
 import numpy as np
-import os
 import torch
 from torch import nn
-from torch.utils.data import Dataset, DataLoader
+from torchvision import transforms
+from torch.utils.data import Dataset
 
 
 class OsuImageDataset(Dataset):
-    def __init__(self, song, transform=None, target_transform=None):
-        self.song = {}
-        for idx, el in enumerate(sorted(filter(lambda x: type(x) is float, song.keys()))):
-            self.song[idx] = song[el]
-        # TODO : возможно стоит нормировать входы
-        self.transform = transform
+    def __init__(self, song, transform=transforms.Normalize, target_transform=None):
+        self.song = []
+        for el in sorted(filter(lambda x: type(x) is float, song.keys())):
+            self.song.append(song[el])
+
+        pixels = []
+
+        for img in self.song:
+            img = img["image"].astype("float") / 255.0
+            pixels.append(img.ravel())
+
+        pixels = np.concatenate(pixels)
+        mean = pixels.mean()
+        std = pixels.std()
+        self.transform = transform([mean]*5, [std]*5)
         self.target_transform = target_transform
 
     def __len__(self):
