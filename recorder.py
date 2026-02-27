@@ -221,7 +221,7 @@ class Recorder(QMainWindow):
         size = len(dataloader.dataset)
         num_batches = len(dataloader)
         test_loss = 0
-        right_answers = 0
+        mean_euclidean_dist = torch.Tensor([0]).to(device)
 
         with torch.no_grad():
             for X, y in dataloader:
@@ -230,9 +230,8 @@ class Recorder(QMainWindow):
 
                 pred = self.model(X)
                 test_loss += loss_fn(pred, y).item()
-                # TODO : выбрать другую метрику
-                right_answers += y.eq(pred).sum().item()
+                mean_euclidean_dist += torch.norm(pred - y, dim=1)
 
         test_loss /= num_batches
-        right_answers /= size
-        print(f"test error: \n accuracy: {(100 * right_answers):>0.1f}%, avg loss: {test_loss:>8f} \n")
+        mean_euclidean_dist /= size
+        print(f"test error: \n mean_euclidean_dist: {(mean_euclidean_dist.item()):>0.1f}, avg loss: {test_loss:>8f} \n")
