@@ -18,7 +18,7 @@ from nn import OsuImageDataset, OsuNeuralNetwork
 from utils import window_pos_to_train_pos, draw_image_with_circle
 
 class Recorder(QMainWindow):
-    def __init__(self, song_names, img_size):
+    def __init__(self, song_names, model_name, img_size):
         super().__init__()
 
         # обработчик окна и его координаты на экране
@@ -47,13 +47,14 @@ class Recorder(QMainWindow):
         self.camera = dxcam.create(region=region, output_color="GRAY")
         self.camera.start()
 
+        self.model_name = model_name
         self.model = OsuNeuralNetwork()
         self.device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
         self.model.to(self.device)
-        if os.path.exists("./models/model.pth"):
-            self.model.load_state_dict(torch.load("./models/model.pth"))
+        if os.path.exists("./models/"+self.model_name+".pth"):
+            self.model.load_state_dict(torch.load("./models/"+self.model_name+".pth"))
         self.loss_func = torch.nn.SmoothL1Loss()
-        self.epochs = 5
+        self.epochs = 10
         lr = 1e-3
         self.optimizer = torch.optim.SGD(self.model.parameters(), lr=lr)
 
@@ -113,7 +114,7 @@ class Recorder(QMainWindow):
                 self.train_model(dataloader, self.loss_func, self.optimizer, self.device)
                 self.test_model(dataloader, self.loss_func, self.device)
 
-            torch.save(self.model.state_dict(), "./models/model.pth")
+            torch.save(self.model.state_dict(), "./models/"+self.model_name+".pth")
 
             self.recorded_images = dict()
             self.training_state = False

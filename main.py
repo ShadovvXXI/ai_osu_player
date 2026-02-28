@@ -12,7 +12,7 @@ HEIGHT = 125
 
 app = QApplication(sys.argv)
 
-window = Recorder(["Gira Gira"], img_size=(WIDTH, HEIGHT))
+window = Recorder(["Gira Gira"], model_name="0.8", img_size=(WIDTH, HEIGHT))
 window.show()
 
 app.exec()
